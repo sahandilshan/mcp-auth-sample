@@ -44,6 +44,8 @@ export default function MCPAgent() {
   const [useOAuth, setUseOAuth] = useState(false);
   const [oauthMetadata, setOauthMetadata] = useState<AuthorizationServerMetadata | null>(null);
   const [oauthInProgress, setOauthInProgress] = useState(false);
+  const oauthPopupRef = useRef<Window | null>(null);
+  const popupCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // AI Model settings
   const [aiProvider, setAiProvider] = useState<'openai' | 'google' | 'azure'>('openai');
@@ -82,11 +84,18 @@ export default function MCPAgent() {
       if (event.data.type === 'oauth_success') {
         console.log('OAuth callback received:', event.data);
         
+        // Clear popup check interval
+        if (popupCheckIntervalRef.current) {
+          clearInterval(popupCheckIntervalRef.current);
+          popupCheckIntervalRef.current = null;
+        }
+        
         const { code, state } = event.data;
         const savedState = retrieveOAuthState();
         
         if (!savedState) {
           alert('OAuth state not found. Please try again.');
+          setOauthInProgress(false);
           return;
         }
         
@@ -94,6 +103,7 @@ export default function MCPAgent() {
         if (state !== savedState.state) {
           alert('OAuth state mismatch. Possible security issue.');
           clearOAuthState();
+          setOauthInProgress(false);
           return;
         }
         
@@ -103,6 +113,7 @@ export default function MCPAgent() {
           
           if (!oauthMetadata?.token_endpoint) {
             alert('Token endpoint not found');
+            setOauthInProgress(false);
             return;
           }
           
@@ -127,6 +138,14 @@ export default function MCPAgent() {
           setOauthInProgress(false);
         }
       } else if (event.data.type === 'oauth_error') {
+        console.error('OAuth error:', event.data);
+        
+        // Clear popup check interval
+        if (popupCheckIntervalRef.current) {
+          clearInterval(popupCheckIntervalRef.current);
+          popupCheckIntervalRef.current = null;
+        }
+        
         alert(`OAuth error: ${event.data.error_description || event.data.error}`);
         clearOAuthState();
         setOauthInProgress(false);
@@ -134,7 +153,13 @@ export default function MCPAgent() {
     };
     
     window.addEventListener('message', handleOAuthCallback);
-    return () => window.removeEventListener('message', handleOAuthCallback);
+    return () => {
+      window.removeEventListener('message', handleOAuthCallback);
+      // Clean up interval on unmount
+      if (popupCheckIntervalRef.current) {
+        clearInterval(popupCheckIntervalRef.current);
+      }
+    };
   }, [oauthMetadata]);
 
   // Check for stored tokens on mount
@@ -212,6 +237,14 @@ export default function MCPAgent() {
       };
       storeOAuthState(oauthState);
       
+      // Extract scopes from metadata (from RFC 8707 protected resource)
+      const scopes = oauthMetadata.scopes_supported;
+      const scopeString = scopes && scopes.length > 0 ? scopes.join(' ') : undefined;
+      
+      if (scopeString) {
+        console.log('Using scopes from protected resource metadata:', scopeString);
+      }
+      
       // Build authorization URL
       const authUrl = buildAuthorizationUrl(
         oauthMetadata.authorization_endpoint,
@@ -219,7 +252,8 @@ export default function MCPAgent() {
         redirectUri,
         state,
         pkce.codeChallenge,
-        pkce.codeChallengeMethod
+        pkce.codeChallengeMethod,
+        scopeString
       );
       
       console.log('Opening authorization URL:', authUrl);
@@ -230,15 +264,77 @@ export default function MCPAgent() {
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
       
-      window.open(
+      const popup = window.open(
         authUrl,
         'OAuth Authorization',
         `width=${width},height=${height},left=${left},top=${top}`
       );
+      
+      // Store popup reference
+      oauthPopupRef.current = popup;
+      
+      // Check if popup was blocked
+      if (!popup) {
+        alert('Popup was blocked! Please allow popups for this site and try again.');
+        setOauthInProgress(false);
+        clearOAuthState();
+        return;
+      }
+      
+      // Monitor popup window - detect if user closes it manually
+      popupCheckIntervalRef.current = setInterval(() => {
+        if (popup.closed) {
+          console.log('OAuth popup was closed by user');
+          
+          // Clear interval
+          if (popupCheckIntervalRef.current) {
+            clearInterval(popupCheckIntervalRef.current);
+            popupCheckIntervalRef.current = null;
+          }
+          
+          // Only show alert if OAuth is still in progress (not already completed)
+          if (oauthInProgress) {
+            alert('Authentication was cancelled. Please try again if you want to authenticate.');
+            setOauthInProgress(false);
+            clearOAuthState();
+          }
+        }
+      }, 500); // Check every 500ms
+      
     } catch (error: any) {
       alert(`OAuth flow error: ${error.message}`);
       setOauthInProgress(false);
+      clearOAuthState();
     }
+  };
+
+  // Reset/Clear OAuth authentication
+  const resetOAuthAuthentication = () => {
+    // Close popup if still open
+    if (oauthPopupRef.current && !oauthPopupRef.current.closed) {
+      oauthPopupRef.current.close();
+    }
+    
+    // Clear popup check interval
+    if (popupCheckIntervalRef.current) {
+      clearInterval(popupCheckIntervalRef.current);
+      popupCheckIntervalRef.current = null;
+    }
+    
+    // Clear all OAuth state and tokens
+    clearOAuthState();
+    if (mcpUrl) {
+      clearTokens(mcpUrl);
+    }
+    
+    // Reset OAuth UI state
+    setOauthMetadata(null);
+    setOauthInProgress(false);
+    setMcpToken('');
+    setUseOAuth(false);
+    
+    console.log('OAuth authentication reset');
+    alert('OAuth authentication has been reset. You can start fresh.');
   };
 
   // Connect to MCP Server
@@ -719,9 +815,24 @@ export default function MCPAgent() {
                 )}
                 
                 {oauthMetadata && (
-                  <div className="text-xs text-gray-600 dark:text-gray-400">
-                    Auth Server: {new URL(oauthMetadata.authorization_endpoint).origin}
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                    <div>Auth Server: {new URL(oauthMetadata.authorization_endpoint).origin}</div>
+                    {oauthMetadata.scopes_supported && oauthMetadata.scopes_supported.length > 0 && (
+                      <div className="mt-1">
+                        Required Scopes: <span className="font-mono">{oauthMetadata.scopes_supported.join(', ')}</span>
+                      </div>
+                    )}
                   </div>
+                )}
+                
+                {/* Reset OAuth Button */}
+                {(oauthMetadata || mcpToken || oauthInProgress) && (
+                  <button
+                    onClick={resetOAuthAuthentication}
+                    className="w-full bg-red-500 dark:bg-red-600 text-white p-2 rounded text-sm hover:bg-red-600 dark:hover:bg-red-700 transition-colors"
+                  >
+                    🔄 Reset OAuth Authentication
+                  </button>
                 )}
               </>
             )}

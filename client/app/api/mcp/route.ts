@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     console.log('Session ID from client:', sessionId);
     console.log('Method:', body.method);
     console.log('Request ID:', body.id);
+    console.log('Has Token:', mcpToken ? 'Yes (Bearer ' + mcpToken.substring(0, 20) + '...)' : 'No');
 
     if (!mcpUrl) {
       return NextResponse.json(
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (mcpToken) {
       headers['Authorization'] = `Bearer ${mcpToken}`;
+      console.log('Adding Authorization header: Bearer', mcpToken.substring(0, 20) + '...');
     }
 
     // Add session ID using the correct header name for Streamable HTTP transport
@@ -43,11 +45,43 @@ export async function POST(request: NextRequest) {
       console.log('No session ID - this should be the initialize request');
     }
 
-    const response = await fetch(mcpUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
+    let response;
+    try {
+      response = await fetch(mcpUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+    } catch (fetchError: any) {
+      console.error('Fetch error:', fetchError);
+      
+      // Handle common fetch errors
+      let errorMessage = 'Failed to connect to MCP server';
+      if (fetchError.code === 'ECONNREFUSED') {
+        errorMessage = `Connection refused: Cannot connect to ${mcpUrl}. Is the server running?`;
+      } else if (fetchError.code === 'ENOTFOUND') {
+        errorMessage = `Host not found: ${mcpUrl}`;
+      } else if (fetchError.code === 'ETIMEDOUT') {
+        errorMessage = `Connection timeout: ${mcpUrl}`;
+      } else if (fetchError.message) {
+        errorMessage = `Connection error: ${fetchError.message}`;
+      }
+      
+      return NextResponse.json(
+        { 
+          error: {
+            code: -32603,
+            message: errorMessage,
+            data: {
+              url: mcpUrl,
+              error: fetchError.message,
+              code: fetchError.code
+            }
+          }
+        },
+        { status: 503 }
+      );
+    }
 
     console.log('Response status:', response.status);
     const mcpSessionIdFromServer = response.headers.get('mcp-session-id');
@@ -56,6 +90,10 @@ export async function POST(request: NextRequest) {
     // Log error responses
     if (!response.ok) {
       console.log('⚠️  HTTP Error Status:', response.status, response.statusText);
+      
+      // Try to read error response body
+      const errorText = await response.text();
+      console.log('Error response body:', errorText);
       
       // Handle 401 Unauthorized - OAuth required
       if (response.status === 401) {
@@ -77,6 +115,40 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
+      
+      // Handle 404 Not Found
+      if (response.status === 404) {
+        return NextResponse.json(
+          {
+            error: {
+              code: -32601,
+              message: `MCP endpoint not found: ${mcpUrl}`,
+              data: {
+                statusCode: 404,
+                statusText: response.statusText,
+                body: errorText
+              }
+            }
+          },
+          { status: 404 }
+        );
+      }
+      
+      // Handle other HTTP errors
+      return NextResponse.json(
+        {
+          error: {
+            code: -32603,
+            message: `Server error: ${response.status} ${response.statusText}`,
+            data: {
+              statusCode: response.status,
+              statusText: response.statusText,
+              body: errorText
+            }
+          }
+        },
+        { status: response.status }
+      );
     }
 
     // Check if response is SSE stream
@@ -131,7 +203,49 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle regular JSON response
-    const data = await response.json();
+    let data;
+    try {
+      const text = await response.text();
+      console.log('Response body:', text.substring(0, 500)); // Log first 500 chars
+      
+      // Try to parse as JSON
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        console.error('Response text:', text);
+        
+        // Return error with the actual response
+        return NextResponse.json(
+          { 
+            error: {
+              code: -32700,
+              message: 'Parse error: Server returned non-JSON response',
+              data: {
+                statusCode: response.status,
+                statusText: response.statusText,
+                body: text,
+                contentType: response.headers.get('content-type')
+              }
+            }
+          },
+          { status: 500 }
+        );
+      }
+    } catch (readError: any) {
+      console.error('Failed to read response body:', readError);
+      return NextResponse.json(
+        { 
+          error: {
+            code: -32603,
+            message: 'Internal error: Could not read server response',
+            data: { error: readError.message }
+          }
+        },
+        { status: 500 }
+      );
+    }
+    
     const responseHeaders = new Headers();
     
     // Pass session ID back if present - check both header formats
