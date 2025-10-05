@@ -3,6 +3,20 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ThemeToggle } from './components/theme-toggle';
+import {
+  generatePKCE,
+  generateState,
+  buildAuthorizationUrl,
+  exchangeCodeForToken,
+  storeOAuthState,
+  retrieveOAuthState,
+  clearOAuthState,
+  storeTokens,
+  retrieveTokens,
+  clearTokens,
+  type AuthorizationServerMetadata,
+  type OAuthState,
+} from './lib/oauth-utils';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -24,6 +38,12 @@ export default function MCPAgent() {
   const [tools, setTools] = useState<MCPTool[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // OAuth settings
+  const [clientId, setClientId] = useState('');
+  const [useOAuth, setUseOAuth] = useState(false);
+  const [oauthMetadata, setOauthMetadata] = useState<AuthorizationServerMetadata | null>(null);
+  const [oauthInProgress, setOauthInProgress] = useState(false);
   
   // AI Model settings
   const [aiProvider, setAiProvider] = useState<'openai' | 'google' | 'azure'>('openai');
@@ -51,10 +71,186 @@ export default function MCPAgent() {
     }
   }, [aiProvider]);
 
+  // Handle OAuth callback
+  useEffect(() => {
+    const handleOAuthCallback = async (event: MessageEvent) => {
+      // Only accept messages from our own origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      
+      if (event.data.type === 'oauth_success') {
+        console.log('OAuth callback received:', event.data);
+        
+        const { code, state } = event.data;
+        const savedState = retrieveOAuthState();
+        
+        if (!savedState) {
+          alert('OAuth state not found. Please try again.');
+          return;
+        }
+        
+        // Verify state parameter
+        if (state !== savedState.state) {
+          alert('OAuth state mismatch. Possible security issue.');
+          clearOAuthState();
+          return;
+        }
+        
+        // Exchange code for token
+        try {
+          setOauthInProgress(true);
+          
+          if (!oauthMetadata?.token_endpoint) {
+            alert('Token endpoint not found');
+            return;
+          }
+          
+          const tokens = await exchangeCodeForToken(
+            oauthMetadata.token_endpoint,
+            code,
+            savedState.codeVerifier,
+            savedState.clientId,
+            savedState.redirectUri
+          );
+          
+          // Store tokens
+          storeTokens(savedState.mcpUrl, tokens);
+          setMcpToken(tokens.access_token);
+          clearOAuthState();
+          
+          alert('OAuth authentication successful! You can now connect.');
+          setOauthInProgress(false);
+        } catch (error: any) {
+          alert(`Token exchange failed: ${error.message}`);
+          clearOAuthState();
+          setOauthInProgress(false);
+        }
+      } else if (event.data.type === 'oauth_error') {
+        alert(`OAuth error: ${event.data.error_description || event.data.error}`);
+        clearOAuthState();
+        setOauthInProgress(false);
+      }
+    };
+    
+    window.addEventListener('message', handleOAuthCallback);
+    return () => window.removeEventListener('message', handleOAuthCallback);
+  }, [oauthMetadata]);
+
+  // Check for stored tokens on mount
+  useEffect(() => {
+    if (mcpUrl && useOAuth) {
+      const tokens = retrieveTokens(mcpUrl);
+      if (tokens) {
+        setMcpToken(tokens.access_token);
+        console.log('Loaded stored OAuth token');
+      }
+    }
+  }, [mcpUrl, useOAuth]);
+
+  // Discover OAuth authorization server (directly from browser)
+  const discoverOAuth = async () => {
+    if (!mcpUrl) {
+      alert('Please enter MCP URL first');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      console.log('🔍 Starting OAuth discovery from browser...');
+      
+      // Import and use the client-side discovery function
+      const { discoverAuthorizationServer } = await import('./lib/oauth-utils');
+      const metadata = await discoverAuthorizationServer(mcpUrl);
+      
+      if (!metadata) {
+        alert('No authorization server found.\n\nMake sure your MCP server:\n- Returns 401 with WWW-Authenticate header, or\n- Exposes /.well-known/oauth-authorization-server, or\n- Exposes /.well-known/openid-configuration');
+        return;
+      }
+      
+      setOauthMetadata(metadata);
+      setUseOAuth(true);
+      
+      console.log('✅ OAuth metadata discovered:', metadata);
+      alert(`Found authorization server!\n\nAuthorization endpoint:\n${metadata.authorization_endpoint}\n\nToken endpoint:\n${metadata.token_endpoint}`);
+    } catch (error: any) {
+      console.error('❌ Discovery error:', error);
+      alert(`Discovery error: ${error.message}\n\nCheck browser console for details.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Start OAuth flow
+  const startOAuthFlow = async () => {
+    if (!mcpUrl || !clientId) {
+      alert('Please enter MCP URL and Client ID');
+      return;
+    }
+    
+    if (!oauthMetadata) {
+      alert('Please discover OAuth server first');
+      return;
+    }
+    
+    try {
+      setOauthInProgress(true);
+      
+      // Generate PKCE values
+      const pkce = await generatePKCE();
+      const state = generateState();
+      const redirectUri = `${window.location.origin}/api/oauth/callback`;
+      
+      // Store OAuth state
+      const oauthState: OAuthState = {
+        state,
+        codeVerifier: pkce.codeVerifier,
+        redirectUri,
+        mcpUrl,
+        clientId,
+      };
+      storeOAuthState(oauthState);
+      
+      // Build authorization URL
+      const authUrl = buildAuthorizationUrl(
+        oauthMetadata.authorization_endpoint,
+        clientId,
+        redirectUri,
+        state,
+        pkce.codeChallenge,
+        pkce.codeChallengeMethod
+      );
+      
+      console.log('Opening authorization URL:', authUrl);
+      
+      // Open authorization URL in popup
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      
+      window.open(
+        authUrl,
+        'OAuth Authorization',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+    } catch (error: any) {
+      alert(`OAuth flow error: ${error.message}`);
+      setOauthInProgress(false);
+    }
+  };
+
   // Connect to MCP Server
   const connectMCP = async () => {
     try {
       setLoading(true);
+      
+      // Check if we need OAuth but don't have a token
+      if (useOAuth && !mcpToken) {
+        alert('Please authenticate with OAuth first');
+        return;
+      }
       
       // Step 1: Initialize session
       const initHeaders: any = {
@@ -91,6 +287,14 @@ export default function MCPAgent() {
       
       // Check for HTTP errors (like 401 Unauthorized)
       if (!initResponse.ok) {
+        // Handle OAuth required
+        if (initResponse.status === 401 && initData.error?.data?.requires_oauth) {
+          alert('OAuth authentication required. Please click "Discover OAuth" and authenticate.');
+          // Automatically discover OAuth
+          await discoverOAuth();
+          return;
+        }
+        
         const errorMsg = initData.error_description || initData.error || `HTTP ${initResponse.status}`;
         alert(`Connection failed: ${errorMsg}`);
         return;
@@ -464,17 +668,79 @@ export default function MCPAgent() {
             className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
           
-          <input
-            type="password"
-            placeholder="OAuth Token (optional)"
-            value={mcpToken}
-            onChange={(e) => setMcpToken(e.target.value)}
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-          />
+          {/* OAuth Section */}
+          <div className="mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between mb-2">
+              <label className="flex items-center text-sm text-gray-900 dark:text-white">
+                <input
+                  type="checkbox"
+                  checked={useOAuth}
+                  onChange={(e) => setUseOAuth(e.target.checked)}
+                  className="mr-2"
+                />
+                Use OAuth Authentication
+              </label>
+            </div>
+            
+            {useOAuth && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Client ID"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+                />
+                
+                {!oauthMetadata && (
+                  <button
+                    onClick={discoverOAuth}
+                    disabled={loading || !mcpUrl}
+                    className="w-full bg-blue-500 dark:bg-blue-600 text-white p-2 rounded text-sm hover:bg-blue-600 dark:hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 mb-2 transition-colors"
+                  >
+                    🔍 Discover OAuth Server
+                  </button>
+                )}
+                
+                {oauthMetadata && !mcpToken && (
+                  <button
+                    onClick={startOAuthFlow}
+                    disabled={oauthInProgress || !clientId}
+                    className="w-full bg-green-500 dark:bg-green-600 text-white p-2 rounded text-sm hover:bg-green-600 dark:hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 mb-2 transition-colors"
+                  >
+                    {oauthInProgress ? '⏳ Authenticating...' : '🔐 Start OAuth Flow'}
+                  </button>
+                )}
+                
+                {mcpToken && (
+                  <div className="text-xs text-green-600 dark:text-green-400 mb-2">
+                    ✅ OAuth token available
+                  </div>
+                )}
+                
+                {oauthMetadata && (
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                    Auth Server: {new URL(oauthMetadata.authorization_endpoint).origin}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          
+          {/* Manual Token Input (for non-OAuth or backup) */}
+          {!useOAuth && (
+            <input
+              type="password"
+              placeholder="OAuth Token (optional)"
+              value={mcpToken}
+              onChange={(e) => setMcpToken(e.target.value)}
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+            />
+          )}
           
           <button
             onClick={connectMCP}
-            disabled={loading || !mcpUrl}
+            disabled={loading || !mcpUrl || (useOAuth && !mcpToken)}
             className="w-full bg-blue-500 dark:bg-blue-600 text-white p-2 rounded hover:bg-blue-600 dark:hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 transition-colors"
           >
             {connected ? '✅ Connected' : '🔌 Connect'}

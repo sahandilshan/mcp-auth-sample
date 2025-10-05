@@ -56,6 +56,27 @@ export async function POST(request: NextRequest) {
     // Log error responses
     if (!response.ok) {
       console.log('⚠️  HTTP Error Status:', response.status, response.statusText);
+      
+      // Handle 401 Unauthorized - OAuth required
+      if (response.status === 401) {
+        const wwwAuth = response.headers.get('WWW-Authenticate');
+        console.log('WWW-Authenticate header:', wwwAuth);
+        
+        // Return OAuth error to client
+        return NextResponse.json(
+          {
+            error: {
+              code: -32001,
+              message: 'Authentication required',
+              data: {
+                www_authenticate: wwwAuth,
+                requires_oauth: true
+              }
+            }
+          },
+          { status: 401 }
+        );
+      }
     }
 
     // Check if response is SSE stream
