@@ -2,6 +2,17 @@
 // Implements MCP OAuth specification with discovery and PKCE flow
 
 /**
+ * OAuth Protected Resource Metadata (RFC 8707)
+ */
+export interface ProtectedResourceMetadata {
+  resource: string;
+  authorization_servers: string[];
+  scopes_supported?: string[];
+  bearer_methods_supported?: string[];
+  [key: string]: any;
+}
+
+/**
  * OAuth Authorization Server Metadata
  */
 export interface AuthorizationServerMetadata {
@@ -11,6 +22,7 @@ export interface AuthorizationServerMetadata {
   response_types_supported?: string[];
   grant_types_supported?: string[];
   code_challenge_methods_supported?: string[];
+  scopes_supported?: string[]; // Scopes from protected resource metadata
   [key: string]: any;
 }
 
@@ -282,13 +294,23 @@ async function tryFetchProtectedResourceMetadata(
       const metadata = await response.json();
       console.log('Protected resource metadata received:', metadata);
       
-      // RFC 8707 format: {"resource": "...", "authorization_servers": ["https://as.example.com"]}
+      // RFC 8707 format: {"resource": "...", "authorization_servers": ["https://as.example.com"], "scopes_supported": ["openid", "email"]}
       if (metadata.authorization_servers && Array.isArray(metadata.authorization_servers)) {
         const authServerUrl = metadata.authorization_servers[0];
-        console.log('✅ Found authorization server from protected resource metadata:', authServerUrl);
+        const scopes = metadata.scopes_supported || [];
         
-        // Fetch the actual authorization server metadata
-        return await fetchAuthServerMetadata(authServerUrl);
+        console.log('✅ Found authorization server from protected resource metadata:', authServerUrl);
+        if (scopes.length > 0) {
+          console.log('✅ Found required scopes:', scopes.join(', '));
+        }
+        
+        // Fetch the actual authorization server metadata and attach scopes
+        const authServerMetadata = await fetchAuthServerMetadata(authServerUrl);
+        if (authServerMetadata) {
+          // Attach scopes from protected resource to auth server metadata
+          authServerMetadata.scopes_supported = scopes;
+          return authServerMetadata;
+        }
       }
       
       // Some servers might directly return auth server metadata here

@@ -32,8 +32,12 @@ export async function GET(request: NextRequest) {
               error_description: '${errorMsg}'
             }, window.location.origin);
             
-            // Close this window after a short delay
-            setTimeout(() => window.close(), 2000);
+            // Try to close immediately, fallback to timeout
+            try {
+              window.close();
+            } catch (e) {
+              setTimeout(() => window.close(), 1000);
+            }
           </script>
         </head>
         <body>
@@ -66,8 +70,12 @@ export async function GET(request: NextRequest) {
               state: '${state}'
             }, window.location.origin);
             
-            // Close this window after a short delay
-            setTimeout(() => window.close(), 1000);
+            // Try to close immediately, fallback to timeout
+            try {
+              window.close();
+            } catch (e) {
+              setTimeout(() => window.close(), 500);
+            }
           </script>
         </head>
         <body>
