@@ -240,7 +240,17 @@ SSL_VERIFY = os.getenv("SSL_VERIFY", "true").lower() == "true"
 
 # Required scopes (optional)
 REQUIRED_SCOPES_STR = os.getenv("REQUIRED_SCOPES", "")
-REQUIRED_SCOPES = REQUIRED_SCOPES_STR.split() if REQUIRED_SCOPES_STR else []
+# If no scopes are specified, default to openid and email for OIDC user info
+if not REQUIRED_SCOPES_STR and ENABLE_AUTH:
+    REQUIRED_SCOPES = ["openid", "email"]
+else:
+    REQUIRED_SCOPES = REQUIRED_SCOPES_STR.split() if REQUIRED_SCOPES_STR else []
+    # Ensure openid and email are always included when auth is enabled
+    if ENABLE_AUTH:
+        if "openid" not in REQUIRED_SCOPES:
+            REQUIRED_SCOPES.insert(0, "openid")
+        if "email" not in REQUIRED_SCOPES:
+            REQUIRED_SCOPES.append("email")
 
 # Validate required environment variables only if auth is enabled
 if ENABLE_AUTH:
@@ -304,8 +314,8 @@ else:
 streamable_app = mcp.streamable_http_app()
 streamable_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your client domain
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials = False,  # Must be False with wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -367,6 +377,71 @@ async def get_time() -> dict[str, str]:
         "time": now.strftime("%H:%M:%S"),
         "date": now.strftime("%Y-%m-%d")
     }
+
+
+@mcp.tool()
+async def whoami() -> dict:
+    """Get information about the currently authenticated user"""
+    logger.info("👤 Getting user information")
+
+    if not ENABLE_AUTH:
+        return {
+            "status": "unauthenticated",
+            "message": "Authentication is disabled on this server"
+        }
+
+    try:
+        # Access the current request context to get the token
+        context = mcp.get_context()
+
+        # Access token is available at context.request_context.request.user.access_token
+        if not context or not context.request_context or not context.request_context.request:
+            return {
+                "status": "unauthenticated",
+                "message": "No request context found"
+            }
+
+        user = context.request_context.request.user
+        if not user or not user.access_token:
+            return {
+                "status": "unauthenticated",
+                "message": "No authentication token found in request"
+            }
+
+        access_token = user.access_token
+        token = access_token.token
+
+        # Decode the JWT without verification (already verified by middleware)
+        decoded = jwt.decode(token, options={"verify_signature": False})
+
+        # Extract common OIDC claims
+        user_info = {
+            "sub": decoded.get("sub", "N/A"),
+            "email": decoded.get("email", "N/A"),
+            "email_verified": str(decoded.get("email_verified", "N/A")),
+            "name": decoded.get("name", "N/A"),
+            "given_name": decoded.get("given_name", "N/A"),
+            "family_name": decoded.get("family_name", "N/A"),
+            "preferred_username": decoded.get("preferred_username", "N/A"),
+            "picture": decoded.get("picture", "N/A"),
+            "scopes": " ".join(access_token.scopes) if access_token.scopes else "N/A",
+            "client_id": access_token.client_id or "N/A",
+            "expires_at": str(access_token.expires_at) if access_token.expires_at else "N/A"
+        }
+
+        # Remove N/A values for cleaner output
+        user_info = {k: v for k, v in user_info.items() if v != "N/A"}
+
+        logger.info(f"   User: {user_info.get('email', user_info.get('sub'))}")
+
+        return user_info
+
+    except Exception as e:
+        logger.error(f"❌ Error getting user info: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 
 # ======================
