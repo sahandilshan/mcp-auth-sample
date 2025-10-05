@@ -28,6 +28,7 @@ export default function MCPAgent() {
   // AI Model settings
   const [aiProvider, setAiProvider] = useState<'openai' | 'google' | 'azure'>('openai');
   const [apiKey, setApiKey] = useState('');
+  const [modelName, setModelName] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +39,17 @@ export default function MCPAgent() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Set default model when provider changes
+  useEffect(() => {
+    if (aiProvider === 'openai') {
+      setModelName('gpt-4o-mini');
+    } else if (aiProvider === 'google') {
+      setModelName('gemini-2.0-flash-exp');
+    } else if (aiProvider === 'azure') {
+      setModelName('gpt-4');
+    }
+  }, [aiProvider]);
 
   // Connect to MCP Server
   const connectMCP = async () => {
@@ -77,15 +89,27 @@ export default function MCPAgent() {
 
       const initData = await initResponse.json();
       
+      // Check for HTTP errors (like 401 Unauthorized)
+      if (!initResponse.ok) {
+        const errorMsg = initData.error_description || initData.error || `HTTP ${initResponse.status}`;
+        alert(`Connection failed: ${errorMsg}`);
+        return;
+      }
+      
+      // Check for JSON-RPC errors
       if (initData.error) {
         alert(`Initialization error: ${initData.error.message}`);
         return;
       }
 
-      // Extract session ID from response headers
+      // Extract session ID from response headers - CRITICAL!
       const newSessionId = initResponse.headers.get('x-session-id');
+      console.log('Received session ID from initialize:', newSessionId);
+      
       if (newSessionId) {
         setSessionId(newSessionId);
+      } else {
+        console.error('WARNING: No session ID received from server!');
       }
 
       // Step 2: Send initialized notification
@@ -98,8 +122,10 @@ export default function MCPAgent() {
         notifyHeaders['x-mcp-token'] = mcpToken;
       }
       
+      // CRITICAL: Use the newSessionId variable, not state (state hasn't updated yet!)
       if (newSessionId) {
         notifyHeaders['x-session-id'] = newSessionId;
+        console.log('Sending initialized with session ID:', newSessionId);
       }
 
       await fetch('/api/mcp', {
@@ -123,6 +149,7 @@ export default function MCPAgent() {
       
       if (newSessionId) {
         toolsHeaders['x-session-id'] = newSessionId;
+        console.log('Sending tools/list with session ID:', newSessionId);
       }
 
       const response = await fetch('/api/mcp', {
@@ -138,6 +165,14 @@ export default function MCPAgent() {
 
       const data = await response.json();
       
+      // Check for HTTP errors
+      if (!response.ok) {
+        const errorMsg = data.error_description || data.error || `HTTP ${response.status}`;
+        alert(`Error listing tools: ${errorMsg}`);
+        return;
+      }
+      
+      // Check for JSON-RPC errors
       if (data.error) {
         alert(`Error: ${data.error.message}`);
         return;
@@ -248,7 +283,7 @@ export default function MCPAgent() {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: aiProvider === 'azure' ? 'gpt-4' : 'gpt-4o-mini',
+        model: modelName || (aiProvider === 'azure' ? 'gpt-4' : 'gpt-4o-mini'),
         messages: [
           ...messages,
           { role: 'user', content: message }
@@ -280,7 +315,7 @@ export default function MCPAgent() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: aiProvider === 'azure' ? 'gpt-4' : 'gpt-4o-mini',
+          model: modelName || (aiProvider === 'azure' ? 'gpt-4' : 'gpt-4o-mini'),
           messages: [
             ...messages,
             { role: 'user', content: message },
@@ -303,8 +338,9 @@ export default function MCPAgent() {
 
   // Google Gemini
   const callGoogle = async (message: string, tools: any[]) => {
+    const model = modelName || 'gemini-2.0-flash-exp';
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -340,7 +376,7 @@ export default function MCPAgent() {
       
       // Get final response
       const finalResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -395,6 +431,18 @@ export default function MCPAgent() {
             <option value="google">Google Gemini</option>
             <option value="azure">Azure OpenAI</option>
           </select>
+          
+          <input
+            type="text"
+            placeholder={
+              aiProvider === 'openai' ? 'Model (e.g., gpt-4o-mini)' :
+              aiProvider === 'google' ? 'Model (e.g., gemini-2.0-flash-exp)' :
+              'Model (e.g., gpt-4)'
+            }
+            value={modelName}
+            onChange={(e) => setModelName(e.target.value)}
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+          />
           
           <input
             type="password"

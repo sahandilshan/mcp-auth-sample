@@ -1,4 +1,5 @@
 // app/api/mcp/route.ts - Proxy for MCP Server with SSE support
+// Handles Streamable HTTP transport as used by MCP Inspector
 import { NextRequest, NextResponse } from 'next/server';
 
 // Store sessions in memory (in production, use Redis or similar)
@@ -10,6 +11,12 @@ export async function POST(request: NextRequest) {
     const mcpUrl = request.headers.get('x-mcp-url');
     const mcpToken = request.headers.get('x-mcp-token');
     const sessionId = request.headers.get('x-session-id');
+
+    console.log('=== MCP Proxy Request ===');
+    console.log('URL:', mcpUrl);
+    console.log('Session ID from client:', sessionId);
+    console.log('Method:', body.method);
+    console.log('Request ID:', body.id);
 
     if (!mcpUrl) {
       return NextResponse.json(
@@ -27,9 +34,13 @@ export async function POST(request: NextRequest) {
       headers['Authorization'] = `Bearer ${mcpToken}`;
     }
 
-    // Add session ID to request if available
+    // Add session ID using the correct header name for Streamable HTTP transport
+    // Note: On first request (initialize), there is no session ID yet
     if (sessionId) {
-      headers['X-Session-ID'] = sessionId;
+      headers['mcp-session-id'] = sessionId;  // Streamable HTTP format
+      console.log('Sending mcp-session-id header:', sessionId);
+    } else {
+      console.log('No session ID - this should be the initialize request');
     }
 
     const response = await fetch(mcpUrl, {
@@ -37,6 +48,15 @@ export async function POST(request: NextRequest) {
       headers,
       body: JSON.stringify(body),
     });
+
+    console.log('Response status:', response.status);
+    const mcpSessionIdFromServer = response.headers.get('mcp-session-id');
+    console.log('Server returned mcp-session-id:', mcpSessionIdFromServer);
+    
+    // Log error responses
+    if (!response.ok) {
+      console.log('⚠️  HTTP Error Status:', response.status, response.statusText);
+    }
 
     // Check if response is SSE stream
     const contentType = response.headers.get('content-type');
@@ -76,26 +96,34 @@ export async function POST(request: NextRequest) {
       const jsonResponse = JSON.parse(result || '{}');
       const responseHeaders = new Headers();
       
-      // Pass session ID back if present
-      const responseSessionId = response.headers.get('x-session-id');
+      // Pass session ID back if present - check both header formats
+      const responseSessionId = response.headers.get('mcp-session-id') || response.headers.get('x-session-id');
       if (responseSessionId) {
         responseHeaders.set('x-session-id', responseSessionId);
       }
       
-      return NextResponse.json(jsonResponse, { headers: responseHeaders });
+      // Preserve the HTTP status code from the server
+      return NextResponse.json(jsonResponse, { 
+        status: response.status,
+        headers: responseHeaders 
+      });
     }
 
     // Handle regular JSON response
     const data = await response.json();
     const responseHeaders = new Headers();
     
-    // Pass session ID back if present
-    const responseSessionId = response.headers.get('x-session-id');
+    // Pass session ID back if present - check both header formats
+    const responseSessionId = response.headers.get('mcp-session-id') || response.headers.get('x-session-id');
     if (responseSessionId) {
       responseHeaders.set('x-session-id', responseSessionId);
     }
     
-    return NextResponse.json(data, { headers: responseHeaders });
+    // Preserve the HTTP status code from the server
+    return NextResponse.json(data, { 
+      status: response.status,
+      headers: responseHeaders 
+    });
   } catch (error: any) {
     console.error('MCP Proxy Error:', error);
     console.error('Error stack:', error?.stack);
