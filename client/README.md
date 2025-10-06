@@ -1,16 +1,46 @@
-# MCP AI Agent ClientThis is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MCP AI Agent Client
+
+A Next.js web client for connecting to MCP (Model Context Protocol) servers with **OAuth 2.0 authentication support**. This client allows AI models (OpenAI, Google Gemini, Azure OpenAI) to interact with MCP tools through a chat interface.
+
+## 🆕 OAuth Authentication Support
+
+This client now supports **automatic OAuth discovery and authentication** according to the MCP OAuth specification, similar to MCP Inspector!
+
+**Key Features:**
+- 🔍 Automatic authorization server discovery
+- 🔐 OAuth 2.0 with PKCE (Proof Key for Code Exchange)
+- 🔄 Token management with automatic expiration handling
+- 🛡️ Secure token storage
+- 📋 Support for `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`
+
+**📖 [Read the OAuth Documentation →](./OAUTH_README.md)**
+
+**📝 [OAuth Configuration Examples →](./OAUTH_EXAMPLES.md)**
+
+**🔄 [View OAuth Flow Diagram →](http://localhost:3000/oauth-flow.html)** (after running `npm run dev`)
+
+---
+
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+A Next.js web client for connecting to MCP (Model Context Protocol) servers with OAuth authentication support. This client allows AI models (OpenAI, Google Gemini, Azure OpenAI) to interact with MCP tools through a chat interface.
+
+## Getting Started
 
 
 
-A Next.js web client for connecting to MCP (Model Context Protocol) servers with OAuth authentication support. This client allows AI models (OpenAI, Google Gemini, Azure OpenAI) to interact with MCP tools through a chat interface.## Getting Started
+## Features
 
+- 🔐 **OAuth 2.0 Authentication** - Automatic discovery and PKCE flow support
+- 🔄 **Session Management** - Proper MCP protocol session initialization and management
+- 🤖 **Multiple AI Providers** - OpenAI, Google Gemini, and Azure OpenAI support
+- 🛠️ **Tool Discovery** - Automatically discovers and uses MCP server tools
+- 🎨 **Dark/Light Mode** - Beautiful UI with theme support
+- 🔌 **CORS Proxy** - Built-in proxy to avoid CORS issues
 
+## Getting Started
 
-## FeaturesFirst, run the development server:
-
-
-
-- 🔐 **MCP OAuth Authentication** - Supports standard MCP authentication with Bearer tokens```bash
+First, run the development server:```bash
 
 - 🔄 **Session Management** - Proper MCP protocol session initialization and managementnpm run dev
 
