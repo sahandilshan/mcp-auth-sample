@@ -206,7 +206,28 @@ export async function POST(request: NextRequest) {
     let data;
     try {
       const text = await response.text();
+      console.log('Response body length:', text.length);
       console.log('Response body:', text.substring(0, 500)); // Log first 500 chars
+      
+      // Check if response is empty
+      if (!text || text.trim().length === 0) {
+        console.error('Empty response body received');
+        return NextResponse.json(
+          { 
+            error: {
+              code: -32700,
+              message: 'Parse error: Server returned empty response',
+              data: {
+                statusCode: response.status,
+                statusText: response.statusText,
+                contentType: response.headers.get('content-type'),
+                bodyLength: 0
+              }
+            }
+          },
+          { status: 500 }
+        );
+      }
       
       // Try to parse as JSON
       try {
