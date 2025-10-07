@@ -920,6 +920,16 @@ export default function MCPAgent() {
               className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               disabled={loading || !apiKey}
             />
+            {messages.length > 0 && (
+              <button
+                onClick={() => setMessages([])}
+                disabled={loading}
+                className="px-4 py-3 bg-gray-500 dark:bg-gray-600 text-white rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 transition-colors"
+                title="Clear chat history"
+              >
+                🗑️ Clear
+              </button>
+            )}
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim() || !apiKey}
