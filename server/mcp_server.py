@@ -28,6 +28,7 @@ class GenericOAuthTokenVerifier(TokenVerifier):
     """
     Generic JWT token verifier that works with any OAuth 2.1 / OIDC provider
     Supports both RS256 (JWKS) and HS256 (shared secret) algorithms
+    Always returns None for invalid/missing tokens to allow unauthenticated access
     """
 
     def __init__(
@@ -67,11 +68,24 @@ class GenericOAuthTokenVerifier(TokenVerifier):
         if self.algorithm == "RS256":
             if not self.jwks_url:
                 raise ValueError("jwks_url is required for RS256 algorithm")
+
+            # Configure SSL context for JWKS client
+            import ssl
+            if not self.ssl_verify:
+                # Disable SSL verification (not recommended for production)
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                logger.warning("⚠️  SSL verification disabled for JWKS endpoint")
+            else:
+                ssl_context = None  # Use default SSL verification
+
             self.jwks_client = PyJWKClient(
                 self.jwks_url,
                 cache_keys=True,
                 max_cached_keys=10,
-                cache_jwk_set=True
+                cache_jwk_set=True,
+                ssl_context=ssl_context
             )
         elif self.algorithm == "HS256":
             if not self.client_secret:
@@ -81,12 +95,18 @@ class GenericOAuthTokenVerifier(TokenVerifier):
 
         logger.info(f"Token verifier initialized with algorithm: {algorithm}")
         logger.info(f"Issuer: {issuer}")
-        logger.info(f"Audience validation: {validate_audience}")
+        logger.info(f"Optional authentication: enabled (tokens verified but not required)")
 
     async def verify_token(self, token: str) -> AccessToken | None:
         """
         Verify JWT token and return AccessToken if valid
+        Returns None for invalid/missing tokens to allow unauthenticated access
         """
+        # Allow missing or empty tokens
+        if not token or token.strip() == "":
+            logger.info("ℹ️  No token provided - allowing unauthenticated access")
+            return None
+
         try:
             # Decode token based on algorithm
             if self.algorithm == "RS256":
@@ -121,19 +141,19 @@ class GenericOAuthTokenVerifier(TokenVerifier):
             )
 
         except jwt.ExpiredSignatureError:
-            logger.warning("❌ Token expired")
+            logger.warning("❌ Token expired - allowing unauthenticated access")
             return None
         except jwt.InvalidAudienceError:
-            logger.warning("❌ Invalid audience")
+            logger.warning("❌ Invalid audience - allowing unauthenticated access")
             return None
         except jwt.InvalidIssuerError:
-            logger.warning("❌ Invalid issuer")
+            logger.warning("❌ Invalid issuer - allowing unauthenticated access")
             return None
         except jwt.InvalidTokenError as e:
-            logger.warning(f"❌ Invalid token: {e}")
+            logger.warning(f"❌ Invalid token: {e} - allowing unauthenticated access")
             return None
         except Exception as e:
-            logger.error(f"❌ Token validation error: {e}")
+            logger.error(f"❌ Token validation error: {e} - allowing unauthenticated access")
             return None
 
     async def _verify_rs256(self, token: str) -> dict:
@@ -242,7 +262,7 @@ SSL_VERIFY = os.getenv("SSL_VERIFY", "true").lower() == "true"
 REQUIRED_SCOPES_STR = os.getenv("REQUIRED_SCOPES", "")
 # If no scopes are specified, default to openid and email for OIDC user info
 if not REQUIRED_SCOPES_STR and ENABLE_AUTH:
-    REQUIRED_SCOPES = ["openid", "email"]
+    REQUIRED_SCOPES = ["openid", "email", "profile"]
 else:
     REQUIRED_SCOPES = REQUIRED_SCOPES_STR.split() if REQUIRED_SCOPES_STR else []
     # Ensure openid and email are always included when auth is enabled
@@ -323,124 +343,241 @@ streamable_app.add_middleware(
 logger.info("✅ CORS middleware configured")
 
 # ======================
+# Helper Functions
+# ======================
+
+def get_current_user_token():
+    """Get the current user's access token from request context"""
+    try:
+        context = mcp.get_context()
+        if not context or not context.request_context or not context.request_context.request:
+            return None
+
+        user = context.request_context.request.user
+        if not user or not user.access_token:
+            return None
+
+        return user.access_token
+    except Exception as e:
+        logger.error(f"Error getting user token: {e}")
+        return None
+
+
+def check_scope(required_scope: str) -> tuple[bool, Optional[str], Optional[list[str]]]:
+    """
+    Check if the current user has the required scope
+    Returns: (has_scope, error_message, user_scopes)
+
+    Note: Since MCP auth spec doesn't support per-tool authentication,
+    this is used for informational responses only.
+    """
+    if not ENABLE_AUTH:
+        return False, "Authentication is not enabled on this server", None
+
+    access_token = get_current_user_token()
+    if not access_token:
+        return False, f"This tool requires authentication with '{required_scope}' scope", None
+
+    user_scopes = access_token.scopes or []
+
+    if required_scope not in user_scopes:
+        return False, f"Missing required scope: '{required_scope}'. Your scopes: {user_scopes}", user_scopes
+
+    return True, None, user_scopes
+
+
+# ======================
 # Define MCP Tools
 # ======================
 
+# ------------------
+# PUBLIC TOOLS (No authentication required)
+# ------------------
+
 @mcp.tool()
-async def get_weather(city: str = "London") -> dict[str, str]:
-    """Get weather data for a city"""
-    logger.info(f"🌤️  Getting weather for: {city}")
+async def get_server_info() -> dict[str, str]:
+    """
+    Get information about the MCP server
+    This tool works without authentication.
+    """
+    logger.info("ℹ️  Getting server information (public)")
+
+    # Check if user is authenticated (optional)
+    access_token = get_current_user_token()
+    is_authenticated = access_token is not None
+
     return {
-        "city": city,
-        "temperature": "22°C",
-        "condition": "Partly cloudy",
-        "humidity": "65%",
-        "wind": "12 km/h"
+        "server_name": "Generic OAuth MCP Server",
+        "version": "1.0.0",
+        "authentication": "enabled" if ENABLE_AUTH else "disabled",
+        "transport": "streamable-http",
+        "description": "MCP server with OAuth 2.1 authentication support",
+        "your_status": "authenticated" if is_authenticated else "unauthenticated",
+        "note": "Some tools provide additional information when authenticated"
     }
 
 
 @mcp.tool()
 async def calculate(expression: str) -> dict[str, str]:
-    """Perform a mathematical calculation"""
-    logger.info(f"🔢 Calculating: {expression}")
+    """
+    Perform a mathematical calculation
+    This tool works without authentication.
+
+    Args:
+        expression: Mathematical expression to evaluate (e.g., "2 + 2", "10 * 5")
+    """
+    logger.info(f"🔢 Calculating: {expression} (public)")
     try:
+        # Safe evaluation with limited builtins
         result = eval(expression, {"__builtins__": {}}, {})
         return {
             "expression": expression,
-            "result": str(result)
+            "result": str(result),
+            "status": "success"
         }
     except Exception as e:
         return {
             "expression": expression,
-            "error": str(e)
+            "error": str(e),
+            "status": "error"
         }
 
 
-@mcp.tool()
-async def echo(message: str) -> dict[str, str]:
-    """Echo back a message"""
-    logger.info(f"📢 Echoing: {message}")
-    return {
-        "original": message,
-        "echo": message
-    }
-
-
-# Add more tools as needed
-@mcp.tool()
-async def get_time() -> dict[str, str]:
-    """Get current server time"""
-    from datetime import datetime
-    now = datetime.now()
-    return {
-        "timestamp": now.isoformat(),
-        "time": now.strftime("%H:%M:%S"),
-        "date": now.strftime("%Y-%m-%d")
-    }
-
+# ------------------
+# AUTHENTICATED TOOLS (Provide enhanced responses with authentication)
+# ------------------
 
 @mcp.tool()
-async def whoami() -> dict:
-    """Get information about the currently authenticated user"""
-    logger.info("👤 Getting user information")
+async def get_email() -> dict[str, str]:
+    """
+    Get the email address of the authenticated user
 
-    if not ENABLE_AUTH:
+    This tool demonstrates scope-based access:
+    - Without authentication: Returns an informational message
+    - With authentication but missing 'email' scope: Returns scope requirement message
+    - With authentication and 'email' scope: Returns the user's email
+
+    Note: MCP spec doesn't enforce tool-level auth, so this is informational only.
+    """
+    logger.info("📧 Getting user email (prefers 'email' scope)")
+
+    # Check for email scope
+    has_scope, error_msg, user_scopes = check_scope("email")
+    if not has_scope:
+        logger.warning(f"⚠️  {error_msg}")
         return {
-            "status": "unauthenticated",
-            "message": "Authentication is disabled on this server"
+            "status": "error",
+            "error": error_msg,
+            "note": "This tool works best with an access token containing the 'email' scope"
+        }
+
+    # Get the access token
+    access_token = get_current_user_token()
+    if not access_token:
+        return {
+            "status": "error",
+            "error": "Failed to retrieve access token"
         }
 
     try:
-        # Access the current request context to get the token
-        context = mcp.get_context()
+        # Decode the JWT to extract email
+        decoded = jwt.decode(access_token.token, options={"verify_signature": False})
 
-        # Access token is available at context.request_context.request.user.access_token
-        if not context or not context.request_context or not context.request_context.request:
+        email = decoded.get("email")
+        email_verified = decoded.get("email_verified", False)
+
+        if not email:
             return {
-                "status": "unauthenticated",
-                "message": "No request context found"
+                "status": "error",
+                "error": "Email not found in token claims"
             }
 
-        user = context.request_context.request.user
-        if not user or not user.access_token:
-            return {
-                "status": "unauthenticated",
-                "message": "No authentication token found in request"
-            }
+        logger.info(f"✅ Email retrieved: {email}")
 
-        access_token = user.access_token
-        token = access_token.token
-
-        # Decode the JWT without verification (already verified by middleware)
-        decoded = jwt.decode(token, options={"verify_signature": False})
-
-        # Extract common OIDC claims
-        user_info = {
-            "sub": decoded.get("sub", "N/A"),
-            "email": decoded.get("email", "N/A"),
-            "email_verified": str(decoded.get("email_verified", "N/A")),
-            "name": decoded.get("name", "N/A"),
-            "given_name": decoded.get("given_name", "N/A"),
-            "family_name": decoded.get("family_name", "N/A"),
-            "preferred_username": decoded.get("preferred_username", "N/A"),
-            "picture": decoded.get("picture", "N/A"),
-            "scopes": " ".join(access_token.scopes) if access_token.scopes else "N/A",
-            "client_id": access_token.client_id or "N/A",
-            "expires_at": str(access_token.expires_at) if access_token.expires_at else "N/A"
+        return {
+            "status": "success",
+            "email": email,
+            "email_verified": str(email_verified),
         }
 
-        # Remove N/A values for cleaner output
-        user_info = {k: v for k, v in user_info.items() if v != "N/A"}
-
-        logger.info(f"   User: {user_info.get('email', user_info.get('sub'))}")
-
-        return user_info
-
     except Exception as e:
-        logger.error(f"❌ Error getting user info: {e}")
+        logger.error(f"❌ Error extracting email: {e}")
         return {
             "status": "error",
-            "message": str(e)
+            "error": f"Failed to extract email from token: {str(e)}"
+        }
+
+
+@mcp.tool()
+async def get_name() -> dict[str, str]:
+    """
+    Get the name of the authenticated user
+
+    This tool demonstrates scope-based access:
+    - Without authentication: Returns an informational message
+    - With authentication but missing 'profile' scope: Returns scope requirement message
+    - With authentication and 'profile' scope: Returns the user's name information
+
+    Note: MCP spec doesn't enforce tool-level auth, so this is informational only.
+    """
+    logger.info("👤 Getting user name (prefers 'profile' scope)")
+
+    # Check for profile scope
+    has_scope, error_msg, user_scopes = check_scope("profile")
+    if not has_scope:
+        logger.warning(f"⚠️  {error_msg}")
+        return {
+            "status": "error",
+            "error": error_msg,
+            "note": "This tool works best with an access token containing the 'profile' scope"
+        }
+
+    # Get the access token
+    access_token = get_current_user_token()
+    if not access_token:
+        return {
+            "status": "error",
+            "error": "Failed to retrieve access token"
+        }
+
+    try:
+        # Decode the JWT to extract name information
+        decoded = jwt.decode(access_token.token, options={"verify_signature": False})
+
+        name = decoded.get("name")
+        given_name = decoded.get("given_name")
+        family_name = decoded.get("family_name")
+        preferred_username = decoded.get("preferred_username")
+
+        # Build response with available name fields
+        response = {
+            "status": "success"
+        }
+
+        if name:
+            response["name"] = name
+        if given_name:
+            response["given_name"] = given_name
+        if family_name:
+            response["family_name"] = family_name
+        if preferred_username:
+            response["preferred_username"] = preferred_username
+
+        if not any([name, given_name, family_name, preferred_username]):
+            return {
+                "status": "error",
+                "error": "No name information found in token claims"
+            }
+
+        logger.info(f"✅ Name retrieved: {name or given_name or preferred_username}")
+
+        return response
+
+    except Exception as e:
+        logger.error(f"❌ Error extracting name: {e}")
+        return {
+            "status": "error",
+            "error": f"Failed to extract name from token: {str(e)}"
         }
 
 
