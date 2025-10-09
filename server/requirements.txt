@@ -9,6 +9,15 @@ pyjwt[crypto]>=2.8.0
 pydantic>=2.6.0
 python-multipart>=0.0.9
 
+# SSL certificate support
+certifi>=2023.0.0
+
+# Async MongoDB driver
+motor>=3.0.0
+
+# Async HTTP client
+aiohttp>=3.9.0
+
 # For AI integrations (optional)
 # anthropic>=0.25.0
 # openai>=1.0.0
