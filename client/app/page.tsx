@@ -17,6 +17,7 @@ import {
   type AuthorizationServerMetadata,
   type OAuthState,
 } from './lib/oauth-utils';
+import { flattenToolSchemas } from './lib/schema-flattener';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -53,9 +54,21 @@ export default function MCPAgent() {
   const [modelName, setModelName] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Auto-resize textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+    }
   };
 
   useEffect(() => {
@@ -528,11 +541,20 @@ export default function MCPAgent() {
     const userMessage: Message = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '60px';
+    }
+    
     setLoading(true);
 
     try {
       // Prepare tools for AI
-      const aiTools = tools.map(tool => ({
+      // For Google Gemini, flatten schemas to remove $defs and $ref
+      const toolsToUse = aiProvider === 'google' ? flattenToolSchemas(tools) : tools;
+      
+      const aiTools = toolsToUse.map(tool => ({
         type: 'function',
         function: {
           name: tool.name,
@@ -911,13 +933,20 @@ export default function MCPAgent() {
         {/* Input */}
         <div className="p-6 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
           <div className="flex space-x-4">
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Type your message..."
-              className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              onChange={handleInputChange}
+              onKeyDown={(e) => {
+                // Send on Enter, new line on Shift+Enter
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+              className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none overflow-y-auto"
+              style={{ minHeight: '60px', maxHeight: '200px' }}
               disabled={loading || !apiKey}
             />
             {messages.length > 0 && (
