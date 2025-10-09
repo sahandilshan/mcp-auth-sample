@@ -575,10 +575,32 @@ export default function MCPAgent() {
       if (aiResponse) {
         setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('AI API error:', error);
+      
+      // Format error message for user
+      let errorMessage = '❌ Error: ';
+      
+      if (error.message) {
+        errorMessage += error.message;
+      } else if (typeof error === 'string') {
+        errorMessage += error;
+      } else {
+        errorMessage += 'An unexpected error occurred. Check the console for details.';
+      }
+      
+      // Add helpful hints based on error type
+      if (error.message?.includes('safety filters') || error.message?.includes('blocked')) {
+        errorMessage += '\n\n💡 Tip: Try rephrasing your message or adjusting the content.';
+      } else if (error.message?.includes('API error')) {
+        errorMessage += '\n\n💡 Tip: Check your API key and model name. Also check browser console for details.';
+      } else if (error.message?.includes('No candidates')) {
+        errorMessage += '\n\n💡 Tip: The model may have rejected the request. Try a different prompt or check safety settings.';
+      }
+      
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `Error: ${error}` 
+        content: errorMessage
       }]);
     } finally {
       setLoading(false);
@@ -661,43 +683,9 @@ export default function MCPAgent() {
   // Google Gemini
   const callGoogle = async (message: string, tools: any[]) => {
     const model = modelName || 'gemini-2.0-flash-exp';
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            ...messages.map(m => ({
-              role: m.role === 'user' ? 'user' : 'model',
-              parts: [{ text: m.content }]
-            })),
-            {
-              role: 'user',
-              parts: [{ text: message }]
-            }
-          ],
-          tools: tools.length > 0 ? [{
-            functionDeclarations: tools.map(t => ({
-              name: t.function.name,
-              description: t.function.description,
-              parameters: t.function.parameters
-            }))
-          }] : undefined
-        })
-      }
-    );
-
-    const data = await response.json();
-    const candidate = data.candidates[0];
-
-    // Handle function calls
-    if (candidate.content.parts[0].functionCall) {
-      const functionCall = candidate.content.parts[0].functionCall;
-      const toolResult = await callMCPTool(functionCall.name, functionCall.args);
-      
-      // Get final response
-      const finalResponse = await fetch(
+    
+    try {
+      const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
@@ -708,28 +696,110 @@ export default function MCPAgent() {
                 role: m.role === 'user' ? 'user' : 'model',
                 parts: [{ text: m.content }]
               })),
-              { role: 'user', parts: [{ text: message }] },
-              { role: 'model', parts: [{ functionCall }] },
-              { 
-                role: 'function',
-                parts: [{
-                  functionResponse: {
-                    name: functionCall.name,
-                    response: toolResult
-                  }
-                }]
+              {
+                role: 'user',
+                parts: [{ text: message }]
               }
-            ]
+            ],
+            tools: tools.length > 0 ? [{
+              functionDeclarations: tools.map(t => ({
+                name: t.function.name,
+                description: t.function.description,
+                parameters: t.function.parameters
+              }))
+            }] : undefined
           })
         }
       );
 
-      const finalData = await finalResponse.json();
-      return `🔧 Used tool: ${functionCall.name}\n\n` + 
-             finalData.candidates[0].content.parts[0].text;
-    }
+      const data = await response.json();
+      
+      // Check for API errors
+      if (data.error) {
+        console.error('Gemini API error:', data.error);
+        throw new Error(`Gemini API error: ${data.error.message || JSON.stringify(data.error)}`);
+      }
+      
+      // Check if candidates exist
+      if (!data.candidates || data.candidates.length === 0) {
+        console.error('No candidates in response:', data);
+        throw new Error('Gemini returned no candidates. The response may have been blocked by safety filters.');
+      }
+      
+      const candidate = data.candidates[0];
+      
+      // Check if content exists
+      if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+        console.error('Invalid candidate structure:', candidate);
+        
+        // Check for block reason
+        if (candidate.finishReason) {
+          throw new Error(`Response blocked: ${candidate.finishReason}. ${candidate.safetyRatings ? 'Safety ratings: ' + JSON.stringify(candidate.safetyRatings) : ''}`);
+        }
+        
+        throw new Error('Invalid response structure from Gemini API');
+      }
 
-    return candidate.content.parts[0].text;
+      // Handle function calls
+      if (candidate.content.parts[0].functionCall) {
+        const functionCall = candidate.content.parts[0].functionCall;
+        const toolResult = await callMCPTool(functionCall.name, functionCall.args);
+        
+        // Get final response
+        const finalResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                ...messages.map(m => ({
+                  role: m.role === 'user' ? 'user' : 'model',
+                  parts: [{ text: m.content }]
+                })),
+                { role: 'user', parts: [{ text: message }] },
+                { role: 'model', parts: [{ functionCall }] },
+                { 
+                  role: 'function',
+                  parts: [{
+                    functionResponse: {
+                      name: functionCall.name,
+                      response: toolResult
+                    }
+                  }]
+                }
+              ]
+            })
+          }
+        );
+
+        const finalData = await finalResponse.json();
+        
+        // Check final response
+        if (!finalData.candidates || finalData.candidates.length === 0) {
+          return `🔧 Used tool: ${functionCall.name}\n📊 Result: ${JSON.stringify(toolResult, null, 2)}\n\n⚠️ Gemini did not provide a final response.`;
+        }
+        
+        if (!finalData.candidates[0].content || !finalData.candidates[0].content.parts || !finalData.candidates[0].content.parts[0].text) {
+          return `🔧 Used tool: ${functionCall.name}\n📊 Result: ${JSON.stringify(toolResult, null, 2)}`;
+        }
+        
+        return `🔧 Used tool: ${functionCall.name}\n\n` + 
+               finalData.candidates[0].content.parts[0].text;
+      }
+
+      // Return text response
+      if (candidate.content.parts[0].text) {
+        return candidate.content.parts[0].text;
+      }
+      
+      // Fallback if no text found
+      throw new Error('No text content in Gemini response');
+      
+    } catch (error: any) {
+      console.error('Gemini API call failed:', error);
+      throw error;
+    }
   };
 
   return (
