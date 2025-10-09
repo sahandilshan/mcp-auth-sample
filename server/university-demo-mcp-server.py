@@ -394,7 +394,6 @@ class ChangePriceArgs(BaseModel):
 
 class EnrollArgs(BaseModel):
     courseCode: str
-    studentId: Optional[str] = None  # Optional: will be derived from token if not provided
 
 class StudentsDueArgs(BaseModel):
     semester: str
@@ -411,7 +410,6 @@ class MarkPaidArgs(BaseModel):
     courseCode: str
 
 class MyBalanceArgs(BaseModel):
-    studentId: Optional[str] = None  # Optional: will be derived from token if not provided
     semester: Optional[str] = None
     year: Optional[int] = None
 
@@ -451,46 +449,6 @@ async def whoami_token(access_token: str) -> Dict[str, Any]:
         return {"valid": False, "error": str(e)}
 
 @mcp.tool()
-async def create_course(args: CreateCourseArgs) -> Dict[str, Any]:
-    """
-    Create a new course
-    Requires authentication with 'academic' role
-    """
-    if ENABLE_AUTH:
-        # Get roles from MCP context (token automatically verified by FastMCP)
-        roles, error = await get_user_roles()
-        if error == "not_authenticated":
-            return {
-                "error": "authentication_required",
-                "message": "This tool requires authentication with 'academic' role"
-            }
-        if error:
-            return {"error": "invalid_token", "detail": error}
-
-        # Check for required role
-        try:
-            require_role(roles, "academic")
-        except PermissionError as e:
-            return {
-                "error": "forbidden",
-                "message": str(e),
-                "your_roles": roles
-            }
-
-    # Create course
-    if await db.courses.find_one({"courseCode": args.courseCode}):
-        return {"error": "course_exists"}
-
-    await db.courses.insert_one({
-        "courseCode": args.courseCode,
-        "title": args.title,
-        "semester": args.semester,
-        "year": args.year,
-        "price": args.price,
-    })
-    return {"ok": True}
-
-@mcp.tool()
 async def change_course_price(args: ChangePriceArgs) -> Dict[str, Any]:
     """
     Change the price of a course
@@ -526,32 +484,29 @@ async def enroll(args: EnrollArgs) -> Dict[str, Any]:
     Enroll a student in a course
     Requires authentication with 'student' role
     """
-    if ENABLE_AUTH:
-        # Get roles from MCP context
-        roles, error = await get_user_roles()
-        if error == "not_authenticated":
-            return {
-                "error": "authentication_required",
-                "message": "This tool requires authentication with 'student' role"
-            }
-        if error:
-            return {"error": "invalid_token", "detail": error}
+    # Get roles from MCP context
+    roles, error = await get_user_roles()
+    if error == "not_authenticated":
+        return {
+            "error": "authentication_required",
+            "message": "This tool requires authentication with 'student' role"
+        }
+    if error:
+        return {"error": "invalid_token", "detail": error}
 
-        # Check for required role
-        try:
-            require_role(roles, "student")
-        except PermissionError as e:
-            return {
-                "error": "forbidden",
-                "message": str(e),
-                "your_roles": roles
-            }
+    # Check for required role
+    try:
+        require_role(roles, "student")
+    except PermissionError as e:
+        return {
+            "error": "forbidden",
+            "message": str(e),
+            "your_roles": roles
+        }
 
-        # Get student ID from token
-        access_token = get_current_user_token()
-        sid = args.studentId or await student_id_from_token(access_token.token)
-    else:
-        sid = args.studentId
+    # Get student ID from token
+    access_token = get_current_user_token()
+    sid = await student_id_from_token(access_token.token)
 
     if not sid:
         return {"error": "student_not_linked"}
@@ -663,32 +618,29 @@ async def my_balance(args: MyBalanceArgs) -> Dict[str, Any]:
     Get your current balance and enrollment details
     Requires authentication with 'student' role
     """
-    if ENABLE_AUTH:
-        # Get roles from MCP context
-        roles, error = await get_user_roles()
-        if error == "not_authenticated":
-            return {
-                "error": "authentication_required",
-                "message": "This tool requires authentication with 'student' role"
-            }
-        if error:
-            return {"error": "invalid_token", "detail": error}
+    # Get roles from MCP context
+    roles, error = await get_user_roles()
+    if error == "not_authenticated":
+        return {
+            "error": "authentication_required",
+            "message": "This tool requires authentication with 'student' role"
+        }
+    if error:
+        return {"error": "invalid_token", "detail": error}
 
-        # Check for required role
-        try:
-            require_role(roles, "student")
-        except PermissionError as e:
-            return {
-                "error": "forbidden",
-                "message": str(e),
-                "your_roles": roles
-            }
+    # Check for required role
+    try:
+        require_role(roles, "student")
+    except PermissionError as e:
+        return {
+            "error": "forbidden",
+            "message": str(e),
+            "your_roles": roles
+        }
 
-        # Get student ID from token
-        access_token = get_current_user_token()
-        sid = args.studentId or await student_id_from_token(access_token.token)
-    else:
-        sid = args.studentId
+    # Get student ID from token
+    access_token = get_current_user_token()
+    sid = await student_id_from_token(access_token.token)
 
     if not sid:
         return {"error": "student_not_linked"}
@@ -719,12 +671,11 @@ async def my_balance(args: MyBalanceArgs) -> Dict[str, Any]:
         "lines": items,
     }
 
-# -------------------- NEW: Example tool using MCP context (standard approach) --------------------
 @mcp.tool()
-async def create_course_v2(args: CreateCourseArgs) -> Dict[str, Any]:
+async def create_course(args: CreateCourseArgs) -> Dict[str, Any]:
     """
-    Create a new course (V2 - uses MCP context for authentication)
-    This is the RECOMMENDED approach - token comes from HTTP Authorization header
+    Create a new course.
+    Requires authentication with 'academic' role.
     """
     if ENABLE_AUTH:
         # Get roles from MCP context (token automatically verified by FastMCP)
