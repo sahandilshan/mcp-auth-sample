@@ -381,13 +381,27 @@ export default function SettingsModal({
         const unique = [...new Set(discoveredAuthServers)];
         for (const as of unique) {
           console.log(`   🔍 ${as}`);
+          
+          // 4a: Try the auth server URL directly
           await tryFetch(as, 'Direct');
+          
           try {
             const au = new URL(as);
             const ab = `${au.protocol}//${au.host}`;
+            
+            // 4b: Try well-known paths on auth server's base URL (host only)
             if (ab !== baseUrl) {
-              await tryFetch(`${ab}/.well-known/oauth-authorization-server`, 'AS OAuth');
-              await tryFetch(`${ab}/.well-known/openid-configuration`, 'AS OIDC');
+              await tryFetch(`${ab}/.well-known/oauth-authorization-server`, 'AS Base OAuth');
+              await tryFetch(`${ab}/.well-known/openid-configuration`, 'AS Base OIDC');
+            }
+            
+            // 4c: NEW - Try well-known paths appended to FULL auth server URL (including path)
+            // Example: https://api.asgardeo.io/t/sahan1001/oauth2/token/.well-known/oauth-authorization-server
+            if (as !== ab) {
+              // Remove trailing slash if present
+              const asClean = as.endsWith('/') ? as.slice(0, -1) : as;
+              await tryFetch(`${asClean}/.well-known/oauth-authorization-server`, 'AS Full OAuth');
+              await tryFetch(`${asClean}/.well-known/openid-configuration`, 'AS Full OIDC');
             }
           } catch {}
         }
@@ -450,19 +464,34 @@ export default function SettingsModal({
         server.oauthMetadata.authorization_endpoint,
         server.clientId,
         redirectUri,
-        codeChallenge,
         state,
+        codeChallenge,
+        'S256',
         (server.oauthMetadata.scopes_supported || []).join(' ')
       );
 
       console.log('🔐 Starting OAuth flow...');
-      console.log('   → Opening authorization URL:', authUrl);
+      console.log('   → Authorization URL:', authUrl);
+      console.log('   📋 PKCE Challenge:', codeChallenge);
 
       const popup = window.open(authUrl, 'oauth-popup', 'width=600,height=700');
       if (!popup) throw new Error('Popup blocked');
 
       const handleMessage = async (event: MessageEvent) => {
-        if (event.origin !== window.location.origin || event.data.type !== 'oauth-callback') return;
+        if (event.origin !== window.location.origin) return;
+        
+        // Handle OAuth error
+        if (event.data.type === 'oauth-error') {
+          window.removeEventListener('message', handleMessage);
+          setOauthInProgress(null);
+          const errorMsg = event.data.error_description || event.data.error;
+          console.error('   ❌ OAuth error:', errorMsg);
+          alert(`OAuth authorization failed: ${errorMsg}`);
+          return;
+        }
+        
+        // Handle OAuth success
+        if (event.data.type !== 'oauth-callback') return;
         window.removeEventListener('message', handleMessage);
 
         const { code, state: returnedState } = event.data;
@@ -471,6 +500,7 @@ export default function SettingsModal({
         
         const storedState = retrieveOAuthState();
         if (!storedState || storedState.state !== returnedState) {
+          setOauthInProgress(null);
           throw new Error('Invalid state parameter');
         }
 
@@ -498,6 +528,7 @@ export default function SettingsModal({
         if (!tokenRes.ok) {
           const errorText = await tokenRes.text();
           console.error('   ❌ Token exchange failed:', errorText);
+          setOauthInProgress(null);
           throw new Error(`Token exchange failed: ${errorText}`);
         }
 
@@ -507,13 +538,18 @@ export default function SettingsModal({
         
         if (tokens.access_token) {
           storeTokens(server.url, tokens);
-          updateServer(serverId, { token: tokens.access_token });
+          // Update server with token AND enable it
+          updateServer(serverId, { 
+            token: tokens.access_token,
+            enabled: true 
+          });
           clearOAuthState();
-          alert('✅ OAuth successful!');
+          setOauthInProgress(null);
+          alert('✅ OAuth successful! Server enabled and ready to connect.');
         } else {
+          setOauthInProgress(null);
           throw new Error('No access token in response');
         }
-        setOauthInProgress(null);
       };
 
       window.addEventListener('message', handleMessage);
