@@ -438,12 +438,22 @@ async def db_counts() -> dict:
     return {"students": students, "courses": courses, "enrollments": enrolls}
 
 @mcp.tool()
-async def whoami_token(access_token: str) -> Dict[str, Any]:
-    """Validate a token and show claims/roles (useful in Claude to capture the bearer)."""
+async def whoami_token() -> Dict[str, Any]:
+    """Validate the current user's token from context and show claims/roles."""
     if not ENABLE_AUTH:
         return {"valid": False, "error": "auth_disabled"}
+
+    # Get token from MCP context
+    access_token = get_current_user_token()
+    if not access_token:
+        return {
+            "valid": False,
+            "error": "not_authenticated",
+            "message": "No access token found in context"
+        }
+
     try:
-        claims = await VALIDATOR.validate(access_token)
+        claims = await VALIDATOR.validate(access_token.token)
         return {"valid": True, "claims": claims, "roles": roles_from_claims(claims)}
     except Exception as e:
         return {"valid": False, "error": str(e)}
