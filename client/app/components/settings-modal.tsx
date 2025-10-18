@@ -567,38 +567,54 @@ export default function SettingsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Settings</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="card-wso2-elevated w-full max-w-4xl max-h-[90vh] overflow-hidden">
+        <div className="flex items-center justify-between p-6 border-b border-wso2-gray-200 dark:border-wso2-dark-border">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-wso2-primary-500 to-wso2-primary-600 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-wso2-gray-900 dark:text-white">WSO2 Agent Settings</h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl"
+            className="p-2 text-wso2-gray-500 dark:text-wso2-gray-400 hover:text-wso2-gray-700 dark:hover:text-wso2-gray-200 hover:bg-wso2-gray-100 dark:hover:bg-wso2-dark-surface rounded-lg transition-colors"
           >
-            ×
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className="flex border-b border-wso2-gray-200 dark:border-wso2-dark-border bg-wso2-gray-50 dark:bg-wso2-dark-surface">
           <button
             onClick={() => setActiveTab('ai')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center space-x-2 ${
               activeTab === 'ai'
-                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
-                : 'text-gray-500 dark:text-gray-400'
+                ? 'text-wso2-primary-600 dark:text-wso2-primary-400 border-b-2 border-wso2-primary-500 bg-white dark:bg-wso2-dark-bg'
+                : 'text-wso2-gray-500 dark:text-wso2-gray-400 hover:text-wso2-gray-700 dark:hover:text-wso2-gray-300'
             }`}
           >
-            AI Provider
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423L16.5 15.75l.394 1.183a2.25 2.25 0 001.423 1.423L19.5 18.75l-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+            </svg>
+            <span>AI Provider</span>
           </button>
           <button
             onClick={() => setActiveTab('mcp')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center space-x-2 ${
               activeTab === 'mcp'
-                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
-                : 'text-gray-500 dark:text-gray-400'
+                ? 'text-wso2-primary-600 dark:text-wso2-primary-400 border-b-2 border-wso2-primary-500 bg-white dark:bg-wso2-dark-bg'
+                : 'text-wso2-gray-500 dark:text-wso2-gray-400 hover:text-wso2-gray-700 dark:hover:text-wso2-gray-300'
             }`}
           >
-            MCP Servers
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v4a2 2 0 01-2 2H5z" />
+            </svg>
+            <span>MCP Servers</span>
           </button>
         </div>
 
@@ -606,7 +622,7 @@ export default function SettingsModal({
           {activeTab === 'ai' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-wso2-gray-700 dark:text-wso2-gray-300 mb-2">
                   AI Provider
                 </label>
                 <select
@@ -617,7 +633,7 @@ export default function SettingsModal({
                       provider: e.target.value as 'openai' | 'google' | 'azure',
                     })
                   }
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="input-wso2"
                 >
                   <option value="openai">OpenAI</option>
                   <option value="google">Google Gemini</option>
@@ -626,7 +642,7 @@ export default function SettingsModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-wso2-gray-700 dark:text-wso2-gray-300 mb-2">
                   API Key
                 </label>
                 <input
@@ -636,12 +652,12 @@ export default function SettingsModal({
                     setLocalAIConfig({ ...localAIConfig, apiKey: e.target.value })
                   }
                   placeholder="Enter your API key"
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="input-wso2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-wso2-gray-700 dark:text-wso2-gray-300 mb-2">
                   Model Name
                 </label>
                 <input
@@ -651,13 +667,13 @@ export default function SettingsModal({
                     setLocalAIConfig({ ...localAIConfig, modelName: e.target.value })
                   }
                   placeholder="e.g., gpt-4o-mini"
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="input-wso2"
                 />
               </div>
 
               <button
                 onClick={handleSaveAI}
-                className="w-full bg-blue-500 dark:bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+                className="btn-wso2-primary w-full"
               >
                 Save AI Settings
               </button>
@@ -669,10 +685,10 @@ export default function SettingsModal({
               {localMCPServers.map((server, index) => (
                 <div
                   key={server.id}
-                  className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-3"
+                  className="card-wso2 p-4 space-y-4"
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900 dark:text-white">
+                    <h3 className="font-medium text-wso2-gray-900 dark:text-white">
                       Server {index + 1}
                     </h3>
                     <button
@@ -702,7 +718,7 @@ export default function SettingsModal({
                     value={server.name}
                     onChange={(e) => updateServer(server.id, { name: e.target.value })}
                     placeholder="Server Name"
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="input-wso2"
                   />
 
                   <input
@@ -710,7 +726,7 @@ export default function SettingsModal({
                     value={server.url}
                     onChange={(e) => updateServer(server.id, { url: e.target.value })}
                     placeholder="Server URL (e.g., http://localhost:8000/mcp)"
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="input-wso2"
                   />
 
                   <div className="flex items-center space-x-2">
@@ -736,7 +752,7 @@ export default function SettingsModal({
                           updateServer(server.id, { clientId: e.target.value })
                         }
                         placeholder="OAuth Client ID"
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="input-wso2"
                       />
 
                       <div className="flex space-x-2">
@@ -778,7 +794,7 @@ export default function SettingsModal({
                           <button
                             onClick={() => startOAuthFlow(server.id)}
                             disabled={oauthInProgress === server.id}
-                            className="flex-1 bg-blue-500 dark:bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 transition-colors text-sm"
+                            className="btn-wso2-primary flex-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {oauthInProgress === server.id
                               ? 'Authenticating...'
@@ -803,7 +819,7 @@ export default function SettingsModal({
                         updateServer(server.id, { token: e.target.value })
                       }
                       placeholder="Bearer Token (optional)"
-                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="input-wso2"
                     />
                   )}
                 </div>
@@ -818,12 +834,32 @@ export default function SettingsModal({
 
               <button
                 onClick={handleSaveMCP}
-                className="w-full bg-blue-500 dark:bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+                className="btn-wso2-primary w-full"
               >
                 Save MCP Servers
               </button>
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end space-x-3 p-6 border-t border-wso2-gray-200 dark:border-wso2-dark-border bg-wso2-gray-50 dark:bg-wso2-dark-surface">
+          <button
+            onClick={onClose}
+            className="btn-wso2-ghost px-6"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              onSaveAIConfig(localAIConfig);
+              onSaveMCPServers(localMCPServers);
+              onClose();
+            }}
+            className="btn-wso2-primary px-6"
+          >
+            Save Settings
+          </button>
         </div>
       </div>
     </div>

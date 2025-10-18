@@ -1,8 +1,10 @@
-// app/page.tsx - Claude Desktop Style Chat Interface
+// app/page.tsx - WSO2 MCP AI Agent Interface
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { ThemeToggle } from './components/theme-toggle';
+import { WSO2ProductLogo } from './components/wso2-logo';
+import { WSO2Footer } from './components/wso2-footer';
 import SettingsModal, {
   type MCPServerConfig,
   type AIProviderConfig,
@@ -728,13 +730,11 @@ export default function MCPAgent() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-gray-950">
+    <div className="flex flex-col h-screen bg-wso2-gray-50 dark:bg-wso2-dark-bg">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            MCP Agent
-          </h1>
+      <header className="flex items-center justify-between px-6 py-4 card-wso2 border-b border-wso2-gray-200 dark:border-wso2-dark-border rounded-none">
+        <div className="flex items-center gap-4">
+          <WSO2ProductLogo productName="MCP AI Agent" size="md" />
           
           {/* MCP Server Status */}
           {mcpSessions.length > 0 && (
@@ -742,23 +742,23 @@ export default function MCPAgent() {
               {mcpSessions.map(session => (
                 <div
                   key={session.sessionId}
-                  className="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-wso2 bg-wso2-gray-100 dark:bg-wso2-dark-surface text-xs border border-wso2-gray-200 dark:border-wso2-dark-border"
                   title={session.error || session.status}
                 >
                   <div
                     className={`w-2 h-2 rounded-full ${
                       session.status === 'connected'
-                        ? 'bg-green-500'
+                        ? 'bg-wso2-success-500'
                         : session.status === 'error'
-                        ? 'bg-red-500'
-                        : 'bg-yellow-500'
+                        ? 'bg-wso2-error-500'
+                        : 'bg-wso2-warning-500'
                     }`}
                   />
-                  <span className="text-gray-700 dark:text-gray-300">
+                  <span className="text-wso2-gray-700 dark:text-wso2-gray-300 font-medium">
                     {session.serverName}
                   </span>
                   {session.status === 'connected' && (
-                    <span className="text-gray-500 dark:text-gray-400">
+                    <span className="text-wso2-gray-500 dark:text-wso2-gray-400">
                       ({session.tools.length} tools)
                     </span>
                   )}
@@ -768,14 +768,14 @@ export default function MCPAgent() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setShowSettings(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="p-2.5 rounded-wso2 hover:bg-wso2-gray-100 dark:hover:bg-wso2-dark-surface transition-colors border border-wso2-gray-200 dark:border-wso2-dark-border"
             title="Settings"
           >
             <svg
-              className="w-5 h-5 text-gray-700 dark:text-gray-300"
+              className="w-5 h-5 text-wso2-gray-700 dark:text-wso2-gray-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -799,38 +799,44 @@ export default function MCPAgent() {
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="flex-1 overflow-y-auto bg-wso2-gray-50 dark:bg-wso2-dark-bg">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="mb-8">
-                <svg
-                  className="w-16 h-16 text-gray-300 dark:text-gray-700 mx-auto mb-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                  />
-                </svg>
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                  Welcome to MCP Agent
+                <div className="w-20 h-20 bg-gradient-to-br from-wso2-primary-500 to-wso2-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-wso2-lg">
+                  <svg
+                    className="w-10 h-10 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423L16.5 15.75l.394 1.183a2.25 2.25 0 001.423 1.423L19.5 18.75l-1.183.394a2.25 2.25 0 00-1.423 1.423z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-3xl font-bold text-wso2-gray-900 dark:text-white mb-3">
+                  Welcome to WSO2 MCP AI Agent
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Configure your AI provider and MCP servers to get started
+                <p className="text-lg text-wso2-gray-600 dark:text-wso2-gray-400 mb-6 max-w-md">
+                  Connect to MCP servers and chat with AI assistants using WSO2's powerful integration platform
                 </p>
               </div>
-              
+
               {(!aiConfig || !aiConfig.apiKey) && (
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="btn-wso2-primary px-8 py-3 text-base font-semibold shadow-wso2-md hover:shadow-wso2-lg flex items-center"
                 >
-                  Open Settings
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Configure Settings
                 </button>
               )}
             </div>
@@ -843,40 +849,58 @@ export default function MCPAgent() {
                     message.role === 'user' ? 'justify-end' : 'justify-start'
                   }`}
                 >
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                  <div className={`flex items-start space-x-3 max-w-[85%] ${
+                    message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                  }`}>
+                    {/* Avatar */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                       message.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap break-words">
-                      {message.content}
+                        ? 'bg-wso2-gray-600 dark:bg-wso2-gray-400'
+                        : 'bg-gradient-to-br from-wso2-primary-500 to-wso2-primary-600'
+                    }`}>
+                      <span className="text-white text-sm font-medium">
+                        {message.role === 'user' ? 'U' : 'AI'}
+                      </span>
                     </div>
-                    
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                        <div className="text-sm opacity-75 mb-2">
-                          Tool Calls:
-                        </div>
-                        {message.toolCalls.map((call, idx) => (
-                          <div
-                            key={idx}
-                            className="text-xs mb-2 p-2 rounded bg-gray-200 dark:bg-gray-700"
-                          >
-                            <div className="font-semibold">{call.name}</div>
-                            <div className="opacity-75 mt-1">
-                              Input: {JSON.stringify(call.input)}
-                            </div>
-                            {call.result && (
-                              <div className="opacity-75 mt-1">
-                                Result: {JSON.stringify(call.result)}
-                              </div>
-                            )}
-                          </div>
-                        ))}
+
+                    {/* Message */}
+                    <div
+                      className={`px-4 py-3 rounded-wso2 shadow-wso2-sm ${
+                        message.role === 'user'
+                          ? 'bg-wso2-primary-500 text-white'
+                          : 'card-wso2 text-wso2-gray-900 dark:text-white'
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap break-words leading-relaxed">
+                        {message.content}
                       </div>
-                    )}
+
+                      {message.toolCalls && message.toolCalls.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-wso2-gray-200 dark:border-wso2-dark-border">
+                          <div className="text-sm font-medium mb-3 text-wso2-gray-700 dark:text-wso2-gray-300">
+                            🔧 Tool Calls:
+                          </div>
+                          {message.toolCalls.map((call, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs mb-3 p-3 rounded-wso2 bg-wso2-gray-50 dark:bg-wso2-dark-surface border border-wso2-gray-200 dark:border-wso2-dark-border"
+                            >
+                              <div className="font-semibold text-wso2-primary-600 dark:text-wso2-primary-400 mb-1">
+                                {call.name}
+                              </div>
+                              <div className="text-wso2-gray-600 dark:text-wso2-gray-400 mb-1">
+                                <span className="font-medium">Input:</span> {JSON.stringify(call.input)}
+                              </div>
+                              {call.result && (
+                                <div className="text-wso2-gray-600 dark:text-wso2-gray-400">
+                                  <span className="font-medium">Result:</span> {JSON.stringify(call.result)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -887,64 +911,86 @@ export default function MCPAgent() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <div className="relative flex items-end gap-2">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              rows={1}
-              disabled={loading}
-              className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 min-h-[48px] max-h-[200px]"
-            />
+      <div className="border-t border-wso2-gray-200 dark:border-wso2-dark-border bg-white dark:bg-wso2-dark-surface">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="relative flex items-end gap-3">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message to the AI agent..."
+                rows={1}
+                disabled={loading}
+                className="w-full resize-none rounded-wso2 border border-wso2-gray-300 dark:border-wso2-dark-border bg-white dark:bg-wso2-dark-surface px-4 py-3 pr-12 text-wso2-gray-900 dark:text-white placeholder-wso2-gray-500 dark:placeholder-wso2-gray-400 focus:outline-none focus:ring-2 focus:ring-wso2-primary-500 focus:border-transparent disabled:opacity-50 min-h-[52px] max-h-[200px] transition-colors duration-200"
+              />
+              {/* Send icon in input */}
+              <button
+                onClick={handleSendMessage}
+                disabled={loading || !input.trim()}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-wso2-primary-500 hover:text-wso2-primary-600 disabled:text-wso2-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            </div>
             <button
               onClick={handleSendMessage}
               disabled={loading || !input.trim()}
-              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="btn-wso2-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 min-h-[52px]"
             >
               {loading ? (
-                <svg
-                  className="animate-spin h-5 w-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
+                <>
+                  <svg
+                    className="animate-spin h-5 w-5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <span>Sending...</span>
+                </>
               ) : (
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                  />
-                </svg>
+                <>
+                  <span>Send</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </>
               )}
             </button>
           </div>
+
+          {(!aiConfig || !aiConfig.apiKey) && (
+            <div className="mt-3 p-3 bg-wso2-warning-50 dark:bg-wso2-warning-950/20 border border-wso2-warning-200 dark:border-wso2-warning-800 rounded-wso2 flex items-center space-x-2">
+              <svg className="w-5 h-5 text-wso2-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.34 15.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="text-sm text-wso2-warning-700 dark:text-wso2-warning-300 font-medium">
+                Please configure AI settings to start chatting
+              </span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Footer */}
+      <WSO2Footer />
 
       {/* Settings Modal */}
       {showSettings && (
