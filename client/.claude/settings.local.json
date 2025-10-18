@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:wso2.com)",
+      "WebFetch(domain:medium.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

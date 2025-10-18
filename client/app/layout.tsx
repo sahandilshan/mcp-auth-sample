@@ -3,8 +3,8 @@ import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "MCP AI Agent",
-  description: "Connect to MCP servers and chat with AI",
+  title: "WSO2 MCP AI Agent",
+  description: "WSO2-powered MCP client for connecting to MCP servers and chatting with AI assistants",
 };
 
 export default function RootLayout({
