@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
     console.log('Session ID from client:', sessionId);
     console.log('Method:', body.method);
     console.log('Request ID:', body.id);
+    console.log('Request params:', JSON.stringify(body.params));
+    console.log('Full request body:', JSON.stringify(body));
     console.log('Has Token:', mcpToken ? 'Yes (Bearer ' + mcpToken.substring(0, 20) + '...)' : 'No');
 
     if (!mcpUrl) {

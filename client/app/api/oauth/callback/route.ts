@@ -27,23 +27,25 @@ export async function GET(request: NextRequest) {
           <script>
             // Send error to parent window
             window.opener?.postMessage({
-              type: 'oauth_error',
+              type: 'oauth-error',
               error: '${error}',
               error_description: '${errorMsg}'
             }, window.location.origin);
             
-            // Try to close immediately, fallback to timeout
-            try {
-              window.close();
-            } catch (e) {
-              setTimeout(() => window.close(), 1000);
-            }
+            // Keep window open briefly to show error
+            setTimeout(() => {
+              try {
+                window.close();
+              } catch (e) {
+                console.error('Could not close window:', e);
+              }
+            }, 2000);
           </script>
         </head>
         <body>
           <h1>OAuth Error</h1>
           <p>${errorMsg}</p>
-          <p>This window will close automatically...</p>
+          <p><small>This window will close automatically in 2 seconds.</small></p>
         </body>
       </html>
       `,
@@ -65,22 +67,25 @@ export async function GET(request: NextRequest) {
           <script>
             // Send code and state to parent window
             window.opener?.postMessage({
-              type: 'oauth_success',
+              type: 'oauth-callback',
               code: '${code}',
               state: '${state}'
             }, window.location.origin);
             
-            // Try to close immediately, fallback to timeout
-            try {
-              window.close();
-            } catch (e) {
-              setTimeout(() => window.close(), 500);
-            }
+            // Keep window open briefly to ensure message is received
+            setTimeout(() => {
+              try {
+                window.close();
+              } catch (e) {
+                console.error('Could not close window:', e);
+              }
+            }, 1000);
           </script>
         </head>
         <body>
           <h1>Authorization Successful</h1>
-          <p>You can close this window now...</p>
+          <p>Redirecting back to application...</p>
+          <p><small>This window will close automatically in 1 second.</small></p>
         </body>
       </html>
       `,
